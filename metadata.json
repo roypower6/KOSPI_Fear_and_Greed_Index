@@ -1,0 +1,5 @@
+{
+  "name": "KOSPI Fear & Greed Index",
+  "description": "Real-time market sentiment analysis for the Korean stock market (KOSPI) using multiple indicators.",
+  "requestFramePermissions": []
+}
