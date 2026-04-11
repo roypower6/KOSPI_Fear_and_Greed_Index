@@ -443,6 +443,7 @@ const App: React.FC = () => {
                     CNN Fear and Greed Index의 레이아웃 및 데이터 산출 방식을 전체적으로 참고하여 만들어졌으며,
                     각 세부 지표는 <strong>실제 수치(Raw Data)</strong>와 그에 따른 <strong>상태(공포, 탐욕 등)</strong>를 직관적으로 제공하며, 
                     이 8가지 지표의 상태를 종합적으로 가중 평균하여 메인 게이지의 최종 인덱스(0~100)를 산출합니다.
+                    Google AI Studio 내에서 TypeScript를 사용하여 구축되었습니다. 
                   </p>
                   <div className="flex items-center gap-2 text-sm font-bold text-indigo-600">
                     <Scale className="w-4 h-4" />
