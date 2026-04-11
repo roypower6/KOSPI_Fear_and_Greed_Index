@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Info, TrendingUp, TrendingDown, ShieldAlert, Activity, BarChart3, Zap, Layers, Scale } from 'lucide-react';
+import { Info, TrendingUp, TrendingDown, ShieldAlert, Activity, BarChart3, Zap, Layers, Scale, LineChart as LineChartIcon, Gauge as GaugeIcon } from 'lucide-react';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { getKospiMarketData, MarketData } from './services/api';
 import Gauge from './components/Gauge';
 import IndicatorCard from './components/IndicatorCard';
@@ -10,6 +11,8 @@ const App: React.FC = () => {
   const [data, setData] = useState<MarketData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<'gauge' | 'chart'>('gauge');
+  const [chartPeriod, setChartPeriod] = useState<'1M' | '3M' | '6M' | '1Y'>('1M');
 
   const getMarketCloseTime = () => {
     const now = new Date();
@@ -49,7 +52,7 @@ const App: React.FC = () => {
     setError(null);
     try {
       const marketClose = getMarketCloseTime();
-      const cached = localStorage.getItem('kospi_fear_greed_data_v2');
+      const cached = localStorage.getItem('kospi_fear_greed_data_v7');
       
       if (!force && cached) {
         const parsed = JSON.parse(cached);
@@ -67,7 +70,7 @@ const App: React.FC = () => {
       setData(result);
       
       // Save to cache with the target close time
-      localStorage.setItem('kospi_fear_greed_data_v2', JSON.stringify({
+      localStorage.setItem('kospi_fear_greed_data_v7', JSON.stringify({
         targetCloseTime: marketClose.toISOString(),
         data: result
       }));
@@ -83,6 +86,12 @@ const App: React.FC = () => {
     fetchData();
   }, []);
 
+  const getFilteredChartData = () => {
+    if (!data?.chartData) return [];
+    const days = chartPeriod === '1M' ? 20 : chartPeriod === '3M' ? 60 : chartPeriod === '6M' ? 120 : 250;
+    return data.chartData.slice(-days);
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans selection:bg-indigo-100 selection:text-indigo-900">
       {/* Header */}
@@ -95,15 +104,6 @@ const App: React.FC = () => {
             <div>
               <h1 className="text-xl font-bold tracking-tight text-slate-900">KOSPI Fear & Greed Index</h1>
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Market Sentiment Dashboard</p>
-            </div>
-          </div>
-          
-          <div className="flex items-center gap-4">
-            <div className="text-right hidden sm:block">
-              <p className="text-sm text-slate-500 font-medium">마지막 업데이트</p>
-              <p className="text-sm font-bold text-slate-800">
-                {data ? new Date(data.lastUpdated).toLocaleString('ko-KR') : '-'}
-              </p>
             </div>
           </div>
         </div>
@@ -153,15 +153,127 @@ const App: React.FC = () => {
               animate={{ opacity: 1 }}
               className="space-y-12"
             >
+              {/* Market Summary Cards */}
+              <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {[
+                  { title: 'KOSPI', data: data.marketSummary?.kospi, format: (v: number) => (v || 0).toFixed(2) },
+                  { title: 'KOSDAQ', data: data.marketSummary?.kosdaq, format: (v: number) => (v || 0).toFixed(2) },
+                  { title: 'USD/KRW', data: data.marketSummary?.usdkrw, format: (v: number) => (v || 0).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) }
+                ].map((item, i) => {
+                  const val = item.data?.value || 0;
+                  const change = item.data?.change || 0;
+                  const changePercent = item.data?.changePercent || 0;
+                  
+                  return (
+                    <div key={i} className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col">
+                      <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-2">{item.title}</h3>
+                      <div className="flex items-end justify-between">
+                        <span className="text-3xl font-black text-slate-900">{item.format(val)}</span>
+                        <div className={cn("flex items-center text-sm font-bold", change >= 0 ? "text-red-500" : "text-blue-500")}>
+                          {change >= 0 ? <TrendingUp className="w-4 h-4 mr-1" /> : <TrendingDown className="w-4 h-4 mr-1" />}
+                          <span>{change > 0 ? '+' : ''}{item.format(change)} ({changePercent > 0 ? '+' : ''}{changePercent.toFixed(2)}%)</span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </section>
+
               {/* Main Gauge Section */}
               <section className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center bg-white border border-slate-200 rounded-3xl p-8 shadow-sm">
-                <div className="lg:col-span-5 flex flex-col items-center text-center">
-                  <h2 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-2">Current Sentiment</h2>
-                  <div className={cn("text-4xl font-black mb-6", getSentimentColor(data.indexValue))}>
-                    {getSentimentLabel(data.indexValue)}
+                <div className="lg:col-span-5 flex flex-col items-center text-center w-full">
+                  <div className="flex items-center justify-center gap-1 mb-6 bg-slate-100 p-1 rounded-lg w-fit mx-auto">
+                    <button 
+                      onClick={() => setViewMode('gauge')} 
+                      className={cn("flex items-center gap-2 px-4 py-1.5 text-sm font-bold rounded-md transition-colors", viewMode === 'gauge' ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-700")}
+                    >
+                      <GaugeIcon className="w-4 h-4" />
+                      게이지
+                    </button>
+                    <button 
+                      onClick={() => setViewMode('chart')} 
+                      className={cn("flex items-center gap-2 px-4 py-1.5 text-sm font-bold rounded-md transition-colors", viewMode === 'chart' ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-700")}
+                    >
+                      <LineChartIcon className="w-4 h-4" />
+                      추이
+                    </button>
                   </div>
-                  <Gauge value={data.indexValue} />
-                  <p className="mt-4 text-xs text-slate-400 font-medium italic">
+
+                  {viewMode === 'gauge' ? (
+                    <motion.div
+                      key="gauge"
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      className="flex flex-col items-center w-full"
+                    >
+                      <h2 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-2">Current Sentiment</h2>
+                      <div className={cn("text-4xl font-black mb-6", getSentimentColor(data.indexValue))}>
+                        {getSentimentLabel(data.indexValue)}
+                      </div>
+                      <Gauge value={data.indexValue} />
+                    </motion.div>
+                  ) : (
+                    <motion.div
+                      key="chart"
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      className="w-full h-[280px] flex flex-col items-center"
+                    >
+                      <div className="flex justify-between items-center w-full mb-2 px-2">
+                        <h2 className="text-sm font-bold text-slate-400 uppercase tracking-widest">Trend ({chartPeriod})</h2>
+                        <div className="flex gap-1 bg-slate-100 p-0.5 rounded-md">
+                          {(['1M', '3M', '6M', '1Y'] as const).map(p => (
+                            <button
+                              key={p}
+                              onClick={() => setChartPeriod(p)}
+                              className={cn("px-2 py-1 text-[10px] font-bold rounded-sm transition-colors", chartPeriod === p ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-700")}
+                            >
+                              {p}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="w-full flex-1 mt-2">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <AreaChart data={getFilteredChartData()} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                            <defs>
+                              <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3}/>
+                                <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
+                              </linearGradient>
+                            </defs>
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                            <XAxis 
+                              dataKey="date" 
+                              axisLine={false} 
+                              tickLine={false} 
+                              tick={{ fontSize: 10, fill: '#64748b' }} 
+                              dy={10} 
+                              minTickGap={20}
+                              tickFormatter={(val) => {
+                                const parts = val.split('-');
+                                if (parts.length === 3) {
+                                  return `${parseInt(parts[1])}/${parseInt(parts[2])}`;
+                                }
+                                return val;
+                              }}
+                            />
+                            <YAxis domain={[0, 100]} axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748b' }} />
+                            <Tooltip 
+                              contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                              labelStyle={{ fontWeight: 'bold', color: '#0f172a', marginBottom: '4px' }}
+                              formatter={(value: number) => [value, 'F&G Index']}
+                            />
+                            <Area type="monotone" dataKey="value" stroke="#6366f1" strokeWidth={3} fillOpacity={1} fill="url(#colorValue)" />
+                          </AreaChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </motion.div>
+                  )}
+
+                  <p className="mt-6 text-xs text-slate-400 font-medium italic">
                     {formatMarketCloseTime(getMarketCloseTime())}
                   </p>
                 </div>
@@ -210,32 +322,6 @@ const App: React.FC = () => {
                     </div>
                   </div>
                 </div>
-              </section>
-
-              {/* Market Summary Cards */}
-              <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {[
-                  { title: 'KOSPI', data: data.marketSummary?.kospi, format: (v: number) => (v || 0).toFixed(2) },
-                  { title: 'KOSDAQ', data: data.marketSummary?.kosdaq, format: (v: number) => (v || 0).toFixed(2) },
-                  { title: 'USD/KRW', data: data.marketSummary?.usdkrw, format: (v: number) => (v || 0).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) }
-                ].map((item, i) => {
-                  const val = item.data?.value || 0;
-                  const change = item.data?.change || 0;
-                  const changePercent = item.data?.changePercent || 0;
-                  
-                  return (
-                    <div key={i} className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col">
-                      <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-2">{item.title}</h3>
-                      <div className="flex items-end justify-between">
-                        <span className="text-3xl font-black text-slate-900">{item.format(val)}</span>
-                        <div className={cn("flex items-center text-sm font-bold", change >= 0 ? "text-red-500" : "text-blue-500")}>
-                          {change >= 0 ? <TrendingUp className="w-4 h-4 mr-1" /> : <TrendingDown className="w-4 h-4 mr-1" />}
-                          <span>{change > 0 ? '+' : ''}{item.format(change)} ({changePercent > 0 ? '+' : ''}{changePercent.toFixed(2)}%)</span>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
               </section>
 
               {/* Indicators Grid */}

@@ -40,39 +40,40 @@ function calculateMetrics(kospi: any[], usdkrw: any[], sp500: any[], offset: num
   // 1. Momentum (KOSPI vs 125-day MA)
   const ma125 = average(k.slice(-125).map(d => d.close));
   const momVal = currK / ma125;
-  const momentum = normalize(momVal, 0.70, 1.30);
+  const momentum = normalize(momVal, 0.95, 1.05); // Hyper-sensitive: 5% deviation is extreme
 
   // 2. Strength (KOSPI vs 52-week High/Low)
   const high52 = Math.max(...k.slice(-250).map(d => d.high).filter(v => v != null));
   const low52 = Math.min(...k.slice(-250).map(d => d.low).filter(v => v != null));
-  const strength = normalize(currK, low52, high52);
+  const range = high52 - low52;
+  const strength = normalize(currK, low52 + range * 0.35, high52 - range * 0.35); // 35% padding: reaching top/bottom 35% of 52w range is extreme
 
   // 3. Breadth (Volume trend)
   const vol20 = average(k.slice(-20).map(d => d.volume || 0));
   const vol120 = average(k.slice(-120).map(d => d.volume || 0));
-  const breadth = vol120 > 0 ? normalize(vol20 / vol120, 0.5, 2.5) : 50;
+  const breadth = vol120 > 0 ? normalize(vol20 / vol120, 0.9, 1.15) : 50; // Volume ratio 0.9 to 1.15
 
   // 4. Volatility (20-day vs 120-day historical volatility)
   const std20 = stdDev(k.slice(-20).map(d => d.close));
   const std120 = stdDev(k.slice(-120).map(d => d.close));
-  const volatility = std120 > 0 ? normalize(std20 / std120, 0.3, 3.0, true) : 50;
+  const volatility = std120 > 0 ? normalize(std20 / std120, 0.8, 1.2, true) : 50; // Volatility ratio 0.8 to 1.2
 
   // 5. Options Proxy (Short term 5-day momentum)
   const ret5d = currK / k[k.length - 6].close;
-  const options = normalize(ret5d, 0.85, 1.15);
+  const options = normalize(ret5d, 0.985, 1.015); // 1.5% move in 5 days is extreme
 
   // 6. Safe Haven Proxy (Global Risk via S&P 500)
   const sp500_ma125 = average(s.slice(-125).map(d => d.close));
-  const safeHaven = normalize(currS / sp500_ma125, 0.85, 1.15);
+  const safeHaven = normalize(currS / sp500_ma125, 0.975, 1.025); // 2.5% deviation for S&P 500
 
   // 7. Exchange Rate (Korea Specific: USD/KRW vs 120-day MA)
   const u_ma120 = average(u.slice(-120).map(d => d.close));
-  const exchange = normalize(currU / u_ma120, 0.85, 1.15, true);
+  const exchange = normalize(currU / u_ma120, 0.985, 1.015, true); // 1.5% deviation for currency
 
   // 8. Foreign Flow Proxy (KOSPI relative to S&P 500 over 20 days)
   const k_ret20 = currK / k[k.length - 21].close;
   const s_ret20 = currS / s[s.length - 21].close;
-  const foreign = normalize(k_ret20 - s_ret20, -0.10, 0.10);
+  const foreign = normalize(k_ret20 - s_ret20, -0.015, 0.015); // 1.5% out/underperformance
 
   const scores = {
     momentum: Math.round(momentum),
@@ -144,6 +145,17 @@ app.get("/api/fear-greed", async (req, res) => {
       return res.status(500).json({ error: 'Insufficient historical data' });
     }
 
+    const chartData = [];
+    for (let i = 250; i >= 0; i--) {
+      const metrics = calculateMetrics(kospi, usdkrw, sp500, i);
+      if (metrics && kospi[kospi.length - 1 - i]) {
+        const dateObj = kospi[kospi.length - 1 - i].date;
+        const d = new Date(dateObj);
+        const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        chartData.push({ date: dateStr, value: metrics.indexValue });
+      }
+    }
+
     const getSummary = (quotes: any[]) => {
       const validQuotes = quotes.filter(q => q.close != null);
       if (validQuotes.length < 2) return { value: 0, change: 0, changePercent: 0 };
@@ -165,6 +177,7 @@ app.get("/api/fear-greed", async (req, res) => {
     res.json({
       ...current,
       marketSummary,
+      chartData,
       historical: {
         oneDayAgo: oneDayAgo.indexValue,
         oneWeekAgo: oneWeekAgo.indexValue,

@@ -1,6 +1,7 @@
 export interface MarketData {
   indexValue: number;
   sentiment: string;
+  chartData: { date: string; value: number }[];
   marketSummary: {
     kospi: { value: number; change: number; changePercent: number };
     kosdaq: { value: number; change: number; changePercent: number };
