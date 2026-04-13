@@ -52,7 +52,7 @@ const App: React.FC = () => {
     setError(null);
     try {
       const marketClose = getMarketCloseTime();
-      const cached = localStorage.getItem('kospi_fear_greed_data_v7');
+      const cached = localStorage.getItem('kospi_fear_greed_data_v9');
       
       if (!force && cached) {
         const parsed = JSON.parse(cached);
@@ -70,7 +70,7 @@ const App: React.FC = () => {
       setData(result);
       
       // Save to cache with the target close time
-      localStorage.setItem('kospi_fear_greed_data_v7', JSON.stringify({
+      localStorage.setItem('kospi_fear_greed_data_v9', JSON.stringify({
         targetCloseTime: marketClose.toISOString(),
         data: result
       }));

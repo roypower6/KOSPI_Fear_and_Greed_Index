@@ -6,15 +6,21 @@ const app = express();
 
 const clamp = (val: number, min: number, max: number) => Math.max(min, Math.min(max, val));
 const normalize = (val: number, min: number, max: number, invert = false) => {
+  if (val == null || isNaN(val)) return 50; // Fallback to neutral if data is missing
   let score = ((val - min) / (max - min)) * 100;
   score = clamp(score, 0, 100);
   return invert ? 100 - score : score;
 };
-const average = (arr: number[]) => arr.reduce((a, b) => a + b, 0) / arr.length;
+const average = (arr: number[]) => {
+  const valid = arr.filter(v => v != null && !isNaN(v));
+  if (valid.length === 0) return 0;
+  return valid.reduce((a, b) => a + b, 0) / valid.length;
+};
 const stdDev = (arr: number[]) => {
-  if (arr.length === 0) return 0;
-  const avg = average(arr);
-  const squareDiffs = arr.map(value => Math.pow(value - avg, 2));
+  const valid = arr.filter(v => v != null && !isNaN(v));
+  if (valid.length === 0) return 0;
+  const avg = average(valid);
+  const squareDiffs = valid.map(value => Math.pow(value - avg, 2));
   return Math.sqrt(average(squareDiffs));
 };
 
@@ -26,16 +32,14 @@ function getLabel(score: number) {
   return "극도의 탐욕 (Extreme Greed)";
 }
 
-function calculateMetrics(kospi: any[], usdkrw: any[], sp500: any[], offset: number) {
-  const k = kospi.slice(0, kospi.length - offset);
-  const u = usdkrw.slice(0, usdkrw.length - offset);
-  const s = sp500.slice(0, sp500.length - offset);
-
+function calculateMetrics(k: any[], u: any[], s: any[]) {
   if (k.length < 125 || u.length < 125 || s.length < 125) return null;
 
   const currK = k[k.length - 1].close;
   const currU = u[u.length - 1].close;
   const currS = s[s.length - 1].close;
+
+  if (currK == null || currU == null || currS == null) return null;
 
   // 1. Momentum (KOSPI vs 125-day MA)
   const ma125 = average(k.slice(-125).map(d => d.close));
@@ -43,20 +47,23 @@ function calculateMetrics(kospi: any[], usdkrw: any[], sp500: any[], offset: num
   const momentum = normalize(momVal, 0.95, 1.05); // Hyper-sensitive: 5% deviation is extreme
 
   // 2. Strength (KOSPI vs 52-week High/Low)
-  const high52 = Math.max(...k.slice(-250).map(d => d.high).filter(v => v != null));
-  const low52 = Math.min(...k.slice(-250).map(d => d.low).filter(v => v != null));
+  const validHighs = k.slice(-250).map(d => d.high).filter(v => v != null && !isNaN(v));
+  const high52 = validHighs.length > 0 ? Math.max(...validHighs) : currK;
+  const validLows = k.slice(-250).map(d => d.low).filter(v => v != null && !isNaN(v));
+  const low52 = validLows.length > 0 ? Math.min(...validLows) : currK;
   const range = high52 - low52;
-  const strength = normalize(currK, low52 + range * 0.35, high52 - range * 0.35); // 35% padding: reaching top/bottom 35% of 52w range is extreme
+  const strength = range > 0 ? normalize(currK, low52 + range * 0.35, high52 - range * 0.35) : 50;
 
   // 3. Breadth (Volume trend)
-  const vol20 = average(k.slice(-20).map(d => d.volume || 0));
-  const vol120 = average(k.slice(-120).map(d => d.volume || 0));
-  const breadth = vol120 > 0 ? normalize(vol20 / vol120, 0.9, 1.15) : 50; // Volume ratio 0.9 to 1.15
+  const validVols = k.map(d => d.volume).filter(v => v != null && !isNaN(v) && v > 0);
+  const vol20 = validVols.length >= 20 ? average(validVols.slice(-20)) : 0;
+  const vol120 = validVols.length >= 120 ? average(validVols.slice(-120)) : 0;
+  const breadth = vol120 > 0 ? normalize(vol20 / vol120, 0.9, 1.15) : 50;
 
   // 4. Volatility (20-day vs 120-day historical volatility)
   const std20 = stdDev(k.slice(-20).map(d => d.close));
   const std120 = stdDev(k.slice(-120).map(d => d.close));
-  const volatility = std120 > 0 ? normalize(std20 / std120, 0.8, 1.2, true) : 50; // Volatility ratio 0.8 to 1.2
+  const volatility = std120 > 0 ? normalize(std20 / std120, 0.8, 1.2, true) : 50;
 
   // 5. Options Proxy (Short term 5-day momentum)
   const ret5d = currK / k[k.length - 6].close;
@@ -105,6 +112,36 @@ function calculateMetrics(kospi: any[], usdkrw: any[], sp500: any[], offset: num
   };
 }
 
+function alignData(kospi: any[], usdkrw: any[], sp500: any[]) {
+  const validKospi = kospi.filter(q => q.close != null);
+  const alignedU = [];
+  const alignedS = [];
+  
+  let uIdx = 0;
+  let sIdx = 0;
+  
+  let lastU = usdkrw.find(q => q.close != null) || usdkrw[0];
+  let lastS = sp500.find(q => q.close != null) || sp500[0];
+
+  for (const k of validKospi) {
+    const kDate = new Date(k.date).getTime();
+    
+    while (uIdx < usdkrw.length && new Date(usdkrw[uIdx].date).getTime() <= kDate) {
+      if (usdkrw[uIdx].close != null) lastU = usdkrw[uIdx];
+      uIdx++;
+    }
+    alignedU.push(lastU);
+    
+    while (sIdx < sp500.length && new Date(sp500[sIdx].date).getTime() <= kDate) {
+      if (sp500[sIdx].close != null) lastS = sp500[sIdx];
+      sIdx++;
+    }
+    alignedS.push(lastS);
+  }
+  
+  return { alignedK: validKospi, alignedU, alignedS };
+}
+
 app.get("/api/health", (req, res) => {
   res.json({ status: "ok", version: "2" });
 });
@@ -127,18 +164,24 @@ app.get("/api/fear-greed", async (req, res) => {
       yahooFinance.chart('^KQ11', queryOptions)
     ]);
 
-    const kospi = kospiData.quotes;
-    const usdkrw = usdkrwData.quotes;
-    const sp500 = sp500Data.quotes;
-    const kosdaq = kosdaqData.quotes;
+    const { alignedK, alignedU, alignedS } = alignData(kospiData.quotes, usdkrwData.quotes, sp500Data.quotes);
 
-    console.log(`Data lengths - KOSPI: ${kospi.length}, USDKRW: ${usdkrw.length}, SP500: ${sp500.length}, KOSDAQ: ${kosdaq.length}`);
+    console.log(`Data lengths - KOSPI: ${alignedK.length}, USDKRW: ${alignedU.length}, SP500: ${alignedS.length}`);
 
-    const current = calculateMetrics(kospi, usdkrw, sp500, 0);
-    const oneDayAgo = calculateMetrics(kospi, usdkrw, sp500, 1);
-    const oneWeekAgo = calculateMetrics(kospi, usdkrw, sp500, 5);
-    const threeMonthsAgo = calculateMetrics(kospi, usdkrw, sp500, 60);
-    const oneYearAgo = calculateMetrics(kospi, usdkrw, sp500, 250);
+    const getMetricsForOffset = (offset: number) => {
+      if (alignedK.length - offset < 125) return null;
+      return calculateMetrics(
+        alignedK.slice(0, alignedK.length - offset),
+        alignedU.slice(0, alignedU.length - offset),
+        alignedS.slice(0, alignedS.length - offset)
+      );
+    };
+
+    const current = getMetricsForOffset(0);
+    const oneDayAgo = getMetricsForOffset(1);
+    const oneWeekAgo = getMetricsForOffset(5);
+    const threeMonthsAgo = getMetricsForOffset(60);
+    const oneYearAgo = getMetricsForOffset(250);
 
     if (!current || !oneDayAgo || !oneWeekAgo || !threeMonthsAgo || !oneYearAgo) {
       console.error("Insufficient data:", { current: !!current, oneDayAgo: !!oneDayAgo, oneWeekAgo: !!oneWeekAgo, threeMonthsAgo: !!threeMonthsAgo, oneYearAgo: !!oneYearAgo });
@@ -147,9 +190,9 @@ app.get("/api/fear-greed", async (req, res) => {
 
     const chartData = [];
     for (let i = 250; i >= 0; i--) {
-      const metrics = calculateMetrics(kospi, usdkrw, sp500, i);
-      if (metrics && kospi[kospi.length - 1 - i]) {
-        const dateObj = kospi[kospi.length - 1 - i].date;
+      const metrics = getMetricsForOffset(i);
+      if (metrics && alignedK[alignedK.length - 1 - i]) {
+        const dateObj = alignedK[alignedK.length - 1 - i].date;
         const d = new Date(dateObj);
         const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
         chartData.push({ date: dateStr, value: metrics.indexValue });
@@ -169,9 +212,9 @@ app.get("/api/fear-greed", async (req, res) => {
     };
 
     const marketSummary = {
-      kospi: getSummary(kospi),
-      kosdaq: getSummary(kosdaq),
-      usdkrw: getSummary(usdkrw)
+      kospi: getSummary(kospiData.quotes),
+      kosdaq: getSummary(kosdaqData.quotes),
+      usdkrw: getSummary(usdkrwData.quotes)
     };
 
     res.json({
