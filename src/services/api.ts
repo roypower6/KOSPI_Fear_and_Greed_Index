@@ -1,10 +1,9 @@
 export interface MarketData {
   indexValue: number;
   sentiment: string;
-  chartData: { date: string; value: number }[];
+  chartData: { date: string; value: number; kospiClose?: number }[];
   marketSummary: {
     kospi: { value: number; change: number; changePercent: number };
-    kosdaq: { value: number; change: number; changePercent: number };
     usdkrw: { value: number; change: number; changePercent: number };
   };
   historical: {

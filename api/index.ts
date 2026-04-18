@@ -192,10 +192,15 @@ app.get("/api/fear-greed", async (req, res) => {
     for (let i = 250; i >= 0; i--) {
       const metrics = getMetricsForOffset(i);
       if (metrics && alignedK[alignedK.length - 1 - i]) {
-        const dateObj = alignedK[alignedK.length - 1 - i].date;
+        const kospiQuote = alignedK[alignedK.length - 1 - i];
+        const dateObj = kospiQuote.date;
         const d = new Date(dateObj);
         const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-        chartData.push({ date: dateStr, value: metrics.indexValue });
+        chartData.push({ 
+          date: dateStr, 
+          value: metrics.indexValue,
+          kospiClose: kospiQuote.close
+        });
       }
     }
 

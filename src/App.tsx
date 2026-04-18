@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Info, TrendingUp, TrendingDown, ShieldAlert, Activity, BarChart3, Zap, Layers, Scale, LineChart as LineChartIcon, Gauge as GaugeIcon } from 'lucide-react';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { AreaChart, Area, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { getKospiMarketData, MarketData } from './services/api';
 import Gauge from './components/Gauge';
 import IndicatorCard from './components/IndicatorCard';
@@ -52,7 +52,7 @@ const App: React.FC = () => {
     setError(null);
     try {
       const marketClose = getMarketCloseTime();
-      const cached = localStorage.getItem('kospi_fear_greed_data_v9');
+      const cached = localStorage.getItem('kospi_fear_greed_data_v10');
       
       if (!force && cached) {
         const parsed = JSON.parse(cached);
@@ -70,7 +70,7 @@ const App: React.FC = () => {
       setData(result);
       
       // Save to cache with the target close time
-      localStorage.setItem('kospi_fear_greed_data_v9', JSON.stringify({
+      localStorage.setItem('kospi_fear_greed_data_v10', JSON.stringify({
         targetCloseTime: marketClose.toISOString(),
         data: result
       }));
@@ -154,10 +154,9 @@ const App: React.FC = () => {
               className="space-y-12"
             >
               {/* Market Summary Cards */}
-              <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <section className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {[
                   { title: 'KOSPI', data: data.marketSummary?.kospi, format: (v: number) => (v || 0).toFixed(2) },
-                  { title: 'KOSDAQ', data: data.marketSummary?.kosdaq, format: (v: number) => (v || 0).toFixed(2) },
                   { title: 'USD/KRW', data: data.marketSummary?.usdkrw, format: (v: number) => (v || 0).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) }
                 ].map((item, i) => {
                   const val = item.data?.value || 0;
@@ -237,7 +236,7 @@ const App: React.FC = () => {
                       </div>
                       <div className="w-full flex-1 mt-2">
                         <ResponsiveContainer width="100%" height="100%">
-                          <AreaChart data={getFilteredChartData()} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                          <AreaChart key={chartPeriod} data={getFilteredChartData()} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                             <defs>
                               <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
                                 <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3}/>
@@ -321,6 +320,63 @@ const App: React.FC = () => {
                       ))}
                     </div>
                   </div>
+                </div>
+              </section>
+
+              {/* KOSPI Chart Section */}
+              <section className="bg-white border border-slate-200 rounded-3xl p-8 shadow-sm">
+                <div className="flex justify-between items-center w-full mb-6">
+                  <h2 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
+                    <TrendingUp className="w-6 h-6 text-indigo-600" />
+                    KOSPI 시세 추이 ({chartPeriod})
+                  </h2>
+                  <div className="flex gap-1 bg-slate-100 p-1 rounded-lg">
+                    {(['1M', '3M', '6M', '1Y'] as const).map(p => (
+                      <button
+                        key={p}
+                        onClick={() => setChartPeriod(p)}
+                        className={cn("px-4 py-1.5 text-sm font-bold rounded-md transition-colors", chartPeriod === p ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-700")}
+                      >
+                        {p}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="w-full h-[300px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart key={chartPeriod} data={getFilteredChartData()} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                      <XAxis 
+                        dataKey="date" 
+                        axisLine={false} 
+                        tickLine={false} 
+                        tick={{ fontSize: 10, fill: '#64748b' }} 
+                        dy={10} 
+                        minTickGap={30}
+                        tickFormatter={(val) => {
+                          const parts = val.split('-');
+                          if (parts.length === 3) {
+                            return `${parseInt(parts[1])}/${parseInt(parts[2])}`;
+                          }
+                          return val;
+                        }}
+                      />
+                      <YAxis 
+                        domain={['auto', 'auto']} 
+                        axisLine={false} 
+                        tickLine={false} 
+                        tick={{ fontSize: 12, fill: '#64748b' }} 
+                        tickFormatter={(val) => val.toLocaleString()}
+                      />
+                      <Tooltip 
+                        contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                        labelStyle={{ fontWeight: 'bold', color: '#0f172a', marginBottom: '4px' }}
+                        formatter={(value: number) => [value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }), 'KOSPI']}
+                        isAnimationActive={false}
+                      />
+                      <Line type="monotone" dataKey="kospiClose" stroke="#10b981" strokeWidth={3} dot={false} activeDot={{ r: 6, strokeWidth: 0, fill: '#10b981' }} />
+                    </LineChart>
+                  </ResponsiveContainer>
                 </div>
               </section>
 
