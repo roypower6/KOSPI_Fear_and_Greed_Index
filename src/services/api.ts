@@ -4,7 +4,6 @@ export interface MarketData {
   chartData: { date: string; value: number; kospiClose?: number }[];
   marketSummary: {
     kospi: { value: number; change: number; changePercent: number };
-    usdkrw: { value: number; change: number; changePercent: number };
   };
   historical: {
     oneDayAgo: number;
@@ -19,7 +18,6 @@ export interface MarketData {
     volatility: { value: string; label: string; status: string };
     options: { value: string; label: string; status: string };
     safeHaven: { value: string; label: string; status: string };
-    exchange: { value: string; label: string; status: string };
     foreign: { value: string; label: string; status: string };
   };
   lastUpdated: string;

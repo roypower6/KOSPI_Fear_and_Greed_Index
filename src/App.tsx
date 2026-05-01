@@ -52,7 +52,7 @@ const App: React.FC = () => {
     setError(null);
     try {
       const marketClose = getMarketCloseTime();
-      const cached = localStorage.getItem('kospi_fear_greed_data_v10');
+      const cached = localStorage.getItem('kospi_fear_greed_data_v14');
       
       if (!force && cached) {
         const parsed = JSON.parse(cached);
@@ -70,7 +70,7 @@ const App: React.FC = () => {
       setData(result);
       
       // Save to cache with the target close time
-      localStorage.setItem('kospi_fear_greed_data_v10', JSON.stringify({
+      localStorage.setItem('kospi_fear_greed_data_v14', JSON.stringify({
         targetCloseTime: marketClose.toISOString(),
         data: result
       }));
@@ -154,10 +154,9 @@ const App: React.FC = () => {
               className="space-y-12"
             >
               {/* Market Summary Cards */}
-              <section className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <section className="grid grid-cols-1 md:grid-cols-1 gap-6">
                 {[
-                  { title: 'KOSPI', data: data.marketSummary?.kospi, format: (v: number) => (v || 0).toFixed(2) },
-                  { title: 'USD/KRW', data: data.marketSummary?.usdkrw, format: (v: number) => (v || 0).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) }
+                  { title: 'KOSPI', data: data.marketSummary?.kospi, format: (v: number) => (v || 0).toFixed(2) }
                 ].map((item, i) => {
                   const val = item.data?.value || 0;
                   const change = item.data?.change || 0;
@@ -236,7 +235,7 @@ const App: React.FC = () => {
                       </div>
                       <div className="w-full flex-1 mt-2">
                         <ResponsiveContainer width="100%" height="100%">
-                          <AreaChart key={chartPeriod} data={getFilteredChartData()} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                          <AreaChart data={getFilteredChartData()} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                             <defs>
                               <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
                                 <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3}/>
@@ -291,7 +290,7 @@ const App: React.FC = () => {
                         <Info className="w-4 h-4" />
                         <span className="text-xs font-bold uppercase tracking-wider">주요 동향</span>
                       </div>
-                      <p className="text-sm text-slate-700 font-medium">현재 KOSPI 시장은 {data.indexValue > 50 ? '낙관적인' : '신중한'} 흐름을 보이고 있습니다.</p>
+                      <p className="text-sm text-slate-700 font-medium">현재 KOSPI 시장은 {data.indexValue > 0 ? '낙관적인' : '신중한'} 흐름을 보이고 있습니다.</p>
                     </div>
                     <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
                       <div className="flex items-center gap-2 text-indigo-600 mb-1">
@@ -344,7 +343,7 @@ const App: React.FC = () => {
                 </div>
                 <div className="w-full h-[300px]">
                   <ResponsiveContainer width="100%" height="100%">
-                    <LineChart key={chartPeriod} data={getFilteredChartData()} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                    <LineChart data={getFilteredChartData()} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                       <XAxis 
                         dataKey="date" 
@@ -439,20 +438,12 @@ const App: React.FC = () => {
                     delay={0.6}
                   />
                   <IndicatorCard
-                    title="원/달러 환율"
-                    value={data.indicators.exchange.value}
-                    label={data.indicators.exchange.label}
-                    status={data.indicators.exchange.status}
-                    description="환율의 급격한 상승은 원화 가치 하락과 외국인 자금 유출을 의미합니다. 이는 국내 시장에 대한 공포 심리를 자극하며 주가 하락의 주요 원인이 됩니다."
-                    delay={0.7}
-                  />
-                  <IndicatorCard
                     title="외국인 투자 심리"
                     value={data.indicators.foreign.value}
                     label={data.indicators.foreign.label}
                     status={data.indicators.foreign.status}
                     description="KOSPI와 S&P 500의 상대적 성과를 비교합니다. KOSPI가 글로벌 시장 대비 유독 약세라면 외국인 투자자들이 한국 시장을 기피하고 있다는 공포 신호로 해석합니다."
-                    delay={0.8}
+                    delay={0.7}
                   />
                 </div>
               </section>
@@ -470,23 +461,23 @@ const App: React.FC = () => {
                   <div className="flex flex-wrap items-center gap-x-6 gap-y-3 text-sm font-bold mt-6 bg-indigo-950/50 p-4 rounded-2xl">
                     <div className="flex items-center gap-2 text-red-400">
                       <div className="w-2.5 h-2.5 rounded-full bg-red-400 shadow-[0_0_8px_rgba(248,113,113,0.6)]" />
-                      0-24: 극도의 공포
+                      0-25: 극도의 공포
                     </div>
                     <div className="flex items-center gap-2 text-orange-400">
                       <div className="w-2.5 h-2.5 rounded-full bg-orange-400 shadow-[0_0_8px_rgba(251,146,60,0.6)]" />
-                      25-49: 공포
+                      26-45: 공포
                     </div>
-                    <div className="flex items-center gap-2 text-yellow-400">
-                      <div className="w-2.5 h-2.5 rounded-full bg-yellow-400 shadow-[0_0_8px_rgba(250,204,21,0.6)]" />
-                      50: 중립
+                    <div className="flex items-center gap-2 text-yellow-500">
+                      <div className="w-2.5 h-2.5 rounded-full bg-yellow-500 shadow-[0_0_8px_rgba(234,179,8,0.6)]" />
+                      46-55: 중립
                     </div>
-                    <div className="flex items-center gap-2 text-green-300">
-                      <div className="w-2.5 h-2.5 rounded-full bg-green-300 shadow-[0_0_8px_rgba(134,239,172,0.6)]" />
-                      51-74: 탐욕
+                    <div className="flex items-center gap-2 text-green-500">
+                      <div className="w-2.5 h-2.5 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]" />
+                      56-75: 탐욕
                     </div>
-                    <div className="flex items-center gap-2 text-green-400">
-                      <div className="w-2.5 h-2.5 rounded-full bg-green-400 shadow-[0_0_8px_rgba(74,222,128,0.6)]" />
-                      75-100: 극도의 탐욕
+                    <div className="flex items-center gap-2 text-green-700">
+                      <div className="w-2.5 h-2.5 rounded-full bg-green-700 shadow-[0_0_8px_rgba(21,128,61,0.6)]" />
+                      76-100: 극도의 탐욕
                     </div>
                   </div>
                 </div>
@@ -495,15 +486,15 @@ const App: React.FC = () => {
                   <Layers className="w-10 h-10 mb-4 text-indigo-600" />
                   <h3 className="text-xl font-bold mb-4 text-slate-900">데이터 산출 방식</h3>
                   <p className="text-slate-600 leading-relaxed mb-4">
-                    본 서비스는 Yahoo Finance API의 실제 시장 데이터를 바탕으로 KOSPI 시장의 8가지 핵심 지표를 분석합니다. 
+                    본 서비스는 Yahoo Finance API의 실제 시장 데이터를 바탕으로 KOSPI 시장의 7가지 핵심 지표를 분석합니다. 
                     CNN Fear and Greed Index의 레이아웃 및 데이터 산출 방식을 전체적으로 참고하여 만들어졌으며,
                     각 세부 지표는 <strong>실제 수치(Raw Data)</strong>와 그에 따른 <strong>상태(공포, 탐욕 등)</strong>를 직관적으로 제공하며, 
-                    이 8가지 지표의 상태를 종합적으로 가중 평균하여 메인 게이지의 최종 인덱스(0~100)를 산출합니다.
+                    이 7가지 지표의 상태를 종합적으로 가중 평균하여 메인 게이지의 최종 인덱스(-100~100)를 산출합니다.
                     Google AI Studio 내에서 TypeScript를 사용하여 구축되었습니다. 
                   </p>
                   <div className="flex items-center gap-2 text-sm font-bold text-indigo-600">
                     <Scale className="w-4 h-4" />
-                    한국 시장 특화(환율, 외국인 수급, 이머징 마켓) 프레임워크 적용
+                    한국 시장 특화(외국인 수급, 글로벌 상대 성과 등) 프레임워크 적용
                   </div>
                 </div>
               </section>
